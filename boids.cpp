@@ -39,7 +39,6 @@ float calc_distance(int this_boid, int other_boid) {
 }
 
 void separation(int this_boid, float* dx, float* dy) {
-    *dx = 0, *dy = 0;
     for (int boid = 0; boid < NUM_BOIDS; boid++) {
         float dist_x = boids[boid].x - boids[this_boid].x;
         float dist_y = boids[boid].y - boids[this_boid].y;
@@ -61,15 +60,28 @@ void alignment(int this_boid, float* heading) {
         }
     }
 
-    *heading = avg_heading / count;
-    
+    *heading += (avg_heading / count) * 0.1f;
+}
+
+void cohesion(int this_boid, float* dx, float* dy) {
+    float avg_x = 0, avg_y = 0, count = 1;
+    for (int boid = 0; boid < NUM_BOIDS; boid++) {
+        if (boid == this_boid) continue;
+        if (calc_distance(this_boid, boid) < NEIGHBOURS_DIST) {
+            avg_x += boids[boid].x;
+            avg_y += boids[boid].y;
+            count++;
+        }
+    }
+
+    *dx = (avg_x / count) - boids[this_boid].x;
+    *dy = (avg_y / count) - boids[this_boid].y;
 }
 
 void update_boids() {
     for (int boid = 0; boid < NUM_BOIDS; boid++) {
         float dx = 0, dy = 0, heading = 0;
         separation(boid, &dx, &dy);
-
         if (dx != 0 || dy != 0) {
             float heading = atan2(dy, dx);
             float diff = heading - boids[boid].angle;
@@ -78,6 +90,13 @@ void update_boids() {
 
         alignment(boid, &heading);
         if (heading != 0) {
+            float diff = heading - boids[boid].angle;
+            boids[boid].angle += normalize_angle(diff) * 0.1f;
+        }
+
+        cohesion(boid, &dx, &dy);
+        if (dx != 0 || dy != 0) {
+            float heading = atan2(dy, dx);
             float diff = heading - boids[boid].angle;
             boids[boid].angle += normalize_angle(diff) * 0.1f;
         }
@@ -100,9 +119,6 @@ void update_boids() {
         }
 
         boids[boid].angle += ((rand() % 3 - 1) * 0.1f);
-        if (boid == 10) {
-            SDL_Log("X: %f, Y: %f, Angle: %f", boids[boid].x, boids[boid].y, boids[boid].angle);
-        }
     }
 }
 
@@ -111,22 +127,16 @@ void draw_boids() {
     SDL_Vertex vertices[3];  // Three vertices for each triangle
     
     // Set common vertex properties
+    for (int i = 0; i < 3; i++) {
+        vertices[i].color.r = 1.0f;
+        vertices[i].color.g = 1.0f;
+        vertices[i].color.b = 1.0f;
+        vertices[i].color.a = 1.0f;
+        vertices[i].tex_coord.x = 0;
+        vertices[i].tex_coord.y = 0;
+    }
+
     for (int boid = 0; boid < NUM_BOIDS; boid++) {
-        for (int i = 0; i < 3; i++) {
-            if (boid == 10) {
-                vertices[i].color.r = 1.0f;  // Red
-                vertices[i].color.g = 0.0f;
-                vertices[i].color.b = 0.0f;
-                vertices[i].color.a = 1.0f;
-            } else {
-                vertices[i].color.r = 1.0f;  // White
-                vertices[i].color.g = 1.0f;
-                vertices[i].color.b = 1.0f;
-                vertices[i].color.a = 1.0f;
-            }
-            vertices[i].tex_coord.x = 0;
-            vertices[i].tex_coord.y = 0;
-        }
 
         // Front point (nose of the triangle)
         vertices[0].position.x = boids[boid].x + BOID_SIZE * cos(boids[boid].angle);
